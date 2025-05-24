@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+   <html lang="en">
+   <head>
+       <meta charset="UTF-8">
+       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+       <title>Crypto Pulse</title>
+       <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+       <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+       <style>
+           body { background-color: #1a202c; color: #e2e8f0; }
+           .card { background-color: #2d3748; border-radius: 0.5rem; transition: transform 0.3s ease; }
+           .card:hover { transform: scale(1.05); }
+           .chart-container { height: 200px; }
+           .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; }
+           .modal-content { background: #2d3748; margin: 5% auto; padding: 20px; width: 90%; max-width: 1200px; border-radius: 0.5rem; }
+           .modal-chart { height: 500px; }
+           .search-bar { background-color: #4a5568; color: #e2e8f0; }
+           .badge { padding: 0.5rem; border-radius: 0.25rem; }
+           .neon-green { background: linear-gradient(45deg, #10b981, #34d399); color: white; }
+           .neon-red { background: linear-gradient(45deg, #ef4444, #f87171); color: white; }
+           .neon-purple { background: linear-gradient(45deg, #7c3aed, #a78bfa); color: white; }
+           .neon-blue { color: #60a5fa; }
+           .neon-gradient { background: linear-gradient(45deg, #10b981, #34d399); color: white; }
+           .navbar { background: #2d3748; padding: 1rem; }
+           .nav-content { display: flex; align-items: center; transition: max-height 0.3s ease; gap: 1rem; }
+           .nav-content.hidden { max-height: 0; overflow: hidden; }
+           .hamburger { display: none; }
+           .dropdown { position: relative; }
+           .dropdown-content { display: none; position: absolute; background-color: #2d3748; min-width: 300px; z-index: 1; border-radius: 0.5rem; padding: 0.5rem; }
+           .dropdown:hover .dropdown-content { display: block; }
+           .icon { width: 24px; height: 24px; cursor: pointer; }
+           @media (max-width: 768px) {
+               .nav-content { flex-direction: column; max-height: 0; }
+               .nav-content.open { max-height: 1000px; }
+               .hamburger { display: block; }
+               .navbar { position: relative; }
+               .dropdown-content { width: 100%; }
+           }
+           .loading-spinner { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border: 4px solid #f3f3f3; border-top: 4px solid #34d399; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+           @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+           @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+           .fade-in { animation: fadeIn 0.5s ease-in; }
+           .signal-card { background: linear-gradient(45deg, #2b6cb0, #60a5fa); color: white; }
+           .clickable { cursor: pointer; }
+       </style>
+   </head>
+   <body>
+       <div class="navbar">
+           <button class="hamburger p-2 bg-gray-700 text-white rounded" onclick="toggleNav()">☰</button>
+           <div class="nav-content open" id="nav-content">
+               <h1 class="text-4xl font-serif font-italic clickable neon-gradient px-4 py-2 rounded" onclick="location.reload()">Crypto Pulse</h1>
+               <div class="ml-auto flex items-center space-x-4">
+                   <div class="dropdown">
+                       <svg class="icon fill-current text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                           <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.06-.94l2.03-1.58a.5.5 0 00.12-.62l-2-3.46a.5.5 0 00-.61-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.5.5 0 00-.49-.42h-4a.5.5 0 00-.49.42l-.36 2.54c-.59.24-1.12.56-1.62.94l-2.39-.96a.5.5 0 00-.61.22l-2 3.46a.5.5 0 00.12.62l2.03 1.58c-.04.3-.06.61-.06.94s.02.64.06.94l-2.03 1.58a.5.5 0 00-.12.62l2 3.46a.5.5 0 00.61.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54a.5.5 0 00.49.42h4a.5.5 0 00.49-.42l.36-2.54c.59-.24 1.12-.56 1.62-.94l2.39.96a.5.5 0 00.61-.22l2-3.46a.5.5 0 00-.12-.62l-2.03-1.58zM12 15.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z"/>
+                       </svg>
+                       <div class="dropdown-content">
+                           <div class="mb-2">
+                               <label for="coin-filter" class="block text-sm">Filter Coin:</label>
+                               <select id="coin-filter" onchange="location = '/filter/' + this.value;" class="p-2 border rounded bg-gray-700 text-white w-full">
+                                   <option value="ALL" {% if selected_symbol == 'ALL' %}selected{% endif %}>All Coins</option>
+                                   {% for pair in pairs %}
+                                   <option value="{{ pair }}" {% if selected_symbol == pair %}selected{% endif %}>{{ pair }}</option>
+                                   {% endfor %}
+                               </select>
+                           </div>
+                           <div class="mb-2">
+                               <label for="quick-filter" class="block text-sm">Quick Filter:</label>
+                               <select id="quick-filter" onchange="location = '/quick_filter/' + this.value;" class="p-2 border rounded bg-gray-700 text-white w-full">
+                                   <option value="all">All</option>
+                                   <option value="overbought">Overbought (RSI > 70)</option>
+                                   <option value="oversold">Oversold (RSI < 30)</option>
+                                   <option value="bullish">Bullish Trend (SMA 20 > SMA 50)</option>
+                                   <option value="macd_buy">MACD Buy Signals</option>
+                                   <option value="macd_sell">MACD Sell Signals</option>
+                                   <option value="volume_spike">Volume Spikes (> $1M)</option>
+                               </select>
+                           </div>
+                           <div>
+                               <label for="search-bar" class="block text-sm">Search Coin:</label>
+                               <input id="search-bar" type="text" placeholder="Search coins..." class="p-2 border rounded search-bar w-full" onkeyup="searchCoins()">
+                           </div>
+                       </div>
+                   </div>
+                   <svg class="icon fill-current text-white" onclick="viewWatchlist()" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                       <path d="M12 17.27l5.18 2.73a.5.5 0 00.73-.53l-.99-5.76 4.19-4.08a.5.5 0 00-.28-.85l-5.8-.84L12 3.29a.5.5 0 00-.9 0L8.87 8.1l-5.8.84a.5.5 0 00-.28.85l4.19 4.08-.99 5.76a.5.5 0 00.73.53L12 17.27z"/>
+                   </svg>
+               </div>
+               <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4 w-full">
+                   <div class="p-4 neon-green rounded">
+                       <h3 class="text-lg font-semibold mb-2">Top Gainers</h3>
+                       {% for item in top_gainers %}
+                       <p class="text-sm">{{ item.symbol }}: {{ "{:.2f}".format(item.price_change) }}%</p>
+                       {% endfor %}
+                   </div>
+                   <div class="p-4 neon-red rounded">
+                       <h3 class="text-lg font-semibold mb-2">Top Losers</h3>
+                       {% for item in top_losers %}
+                       <p class="text-sm">{{ item.symbol }}: {{ "{:.2f}".format(item.price_change) }}%</p>
+                       {% endfor %}
+                   </div>
+                   <div class="p-4 neon-purple rounded">
+                       <h3 class="text-lg font-semibold mb-2">High Volume</h3>
+                       {% for item in high_volume %}
+                       <p class="text-sm">{{ item.symbol }}: ${{ "{:.2f}".format(item.volume_usdt) }}</p>
+                       {% endfor %}
+                   </div>
+                   <div class="p-4 signal-card rounded">
+                       <h3 class="text-lg font-semibold mb-2">Signal Summary</h3>
+                       <p class="text-sm">Buy Signals: {{ signal_summary.buy_signals }}</p>
+                       <p class="text-sm">Sell Signals: {{ signal_summary.sell_signals }}</p>
+                   </div>
+               </div>
+           </div>
+           <p class="text-center mt-2">Latest Update: May 25, 2025, 12:03 AM +08</p>
+       </div>
+       <div class="container mx-auto p-4">
+           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="coin-container">
+               {% for item in data %}
+               <div class="card p-4 fade-in" onclick="debounceOpenModal('{{ item.symbol }}')">
+                   <h2 class="text-xl font-semibold neon-blue">{{ item.symbol }}</h2>
+                   <p class="text-lg">Price: 
+                       {% if item.price %}
+                           <span class="price" data-symbol="{{ item.symbol }}">${{ "{:.2f}".format(item.price) }}</span>
+                       {% else %}
+                           Error: {{ item.error }}
+                       {% endif %}
+                   </p>
+                   {% if item.alert %}
+                   <p class="text-sm text-yellow-400">{{ item.alert }}</p>
+                   {% endif %}
+                   <p>RSI: 
+                       {% if item.rsi %}
+                           {{ "{:.2f}".format(item.rsi) }} 
+                           <span class="badge {% if item.rsi > 70 %}neon-red{% elif item.rsi < 30 %}neon-green{% else %}neon-purple{% endif %}">
+                               {{ item.status }}
+                           </span>
+                       {% else %}
+                           N/A
+                       {% endif %}
+                   </p>
+                   <p>SMA 20: {% if item.sma20 %}{{ "{:.2f}".format(item.sma20) }}{% else %}N/A{% endif %}</p>
+                   <p>SMA 50: {% if item.sma50 %}{{ "{:.2f}".format(item.sma50) }}{% else %}N/A{% endif %}</p>
+                   <p>Trend: <span class="badge {% if item.trend == 'Bullish' %}neon-green{% else %}neon-red{% endif %}">{{ item.trend }}</span></p>
+                   <p>MACD: {% if item.macd %}{{ "{:.2f}".format(item.macd) }}{% else %}N/A{% endif %}</p>
+                   <p>MACD Signal: {% if item.macd_signal %}{{ "{:.2f}".format(item.macd_signal) }}{% else %}N/A{% endif %}</p>
+                   <p>MACD Signal: <span class="badge {% if item.macd_signal_type == 'Buy' %}neon-green{% else %}neon-red{% endif %}">{{ item.macd_signal_type }}</span></p>
+                   <p>Volume: {% if item.volume_usdt %}${{ "{:.2f}".format(item.volume_usdt) }}{% else %}N/A{% endif %}</p>
+                   <p>3h Change: {% if item.price_change %}{{ "{:.2f}".format(item.price_change) }}%{% else %}N/A{% endif %}</p>
+                   <div class="chart-container">
+                       <canvas id="chart-{{ item.symbol }}"></canvas>
+                   </div>
+                   <div class="mt-2">
+                       <input type="number" id="alert-high-{{ item.symbol }}" placeholder="High alert" class="p-2 border rounded bg-gray-700 text-white w-full mb-2">
+                       <input type="number" id="alert-low-{{ item.symbol }}" placeholder="Low alert" class="p-2 border rounded bg-gray-700 text-white w-full mb-2">
+                       <button onclick="setPriceAlert('{{ item.symbol }}')" class="p-2 bg-blue-600 text-white rounded w-full">Set Alerts</button>
+                       <button onclick="addToWatchlist('{{ item.symbol }}')" class="p-2 bg-green-600 text-white rounded w-full mt-2">Add to Watchlist</button>
+                   </div>
+               </div>
+               {% endfor %}
+           </div>
+       </div>
+       <div id="chartModal" class="modal">
+           <div class="modal-content relative">
+               <div id="loadingSpinner" class="loading-spinner"></div>
+               <span onclick="closeModal()" class="cursor-pointer text-2xl float-right">×</span>
+               <h2 id="modal-title" class="text-2xl font-semibold mb-4"></h2>
+               <div class="modal-chart">
+                   <canvas id="modal-chart"></canvas>
+               </div>
+           </div>
+       </div>
+       <script>
+           // Request notification permission
+           if (Notification.permission !== "granted") {
+               Notification.requestPermission();
+           }
+
+           // Chart.js for mini charts
+           {% for item in data %}
+           {% if item.chart_data %}
+           const ctx_{{ item.symbol|replace('/', '') }} = document.getElementById('chart-{{ item.symbol }}').getContext('2d');
+           new Chart(ctx_{{ item.symbol|replace('/', '') }}, {
+               type: 'line',
+               data: {
+                   labels: [{% for point in item.chart_data %}'{{ point.timestamp.strftime('%H:%M') }}',{% endfor %}],
+                   datasets: [
+                       {
+                           label: 'Price',
+                           data: [{% for point in item.chart_data %}{{ point.close }},{% endfor %}],
+                           borderColor: '#34d399',
+                           yAxisID: 'price'
+                       },
+                       {
+                           label: 'SMA 20',
+                           data: [{% for point in item.chart_data %}{{ point.sma20 or 'null' }},{% endfor %}],
+                           borderColor: '#60a5fa',
+                           yAxisID: 'price'
+                       },
+                       {
+                           label: 'SMA 50',
+                           data: [{% for point in item.chart_data %}{{ point.sma50 or 'null' }},{% endfor %}],
+                           borderColor: '#a78bfa',
+                           yAxisID: 'price'
+                       }
+                   ]
+               },
+               options: {
+                   scales: {
+                       price: { position: 'left', title: { display: true, text: 'Price (USDT)' } }
+                   },
+                   plugins: { legend: { display: true } },
+                   animation: false
+               }
+           });
+           {% endif %}
+           {% endfor %}
+
+           // Modal chart with optimized rendering
+           let modalChart = null;
+           async function openModal(symbol) {
+               const spinner = document.getElementById('loadingSpinner');
+               spinner.style.display = 'block';
+               try {
+                   const response = await fetch(`/api/chart/${symbol}`);
+                   const chartData = await response.json();
+                   spinner.style.display = 'none';
+                   if (!chartData || chartData.length === 0) {
+                       alert('No chart data available for ' + symbol);
+                       return;
+                   }
+                   document.getElementById('modal-title').textContent = symbol;
+                   const modal = document.getElementById('chartModal');
+                   modal.style.display = 'block';
+                   if (modalChart) modalChart.destroy();
+                   const ctx = document.getElementById('modal-chart').getContext('2d');
+                   modalChart = new Chart(ctx, {
+                       type: 'line',
+                       data: {
+                           labels: chartData.map(d => new Date(d.timestamp).toLocaleTimeString()),
+                           datasets: [
+                               {
+                                   label: 'Price',
+                                   data: chartData.map(d => d.close),
+                                   borderColor: '#34d399',
+                                   yAxisID: 'price'
+                               },
+                               {
+                                   label: 'RSI',
+                                   data: chartData.map(d => d.rsi),
+                                   borderColor: '#a78bfa',
+                                   yAxisID: 'rsi'
+                               },
+                               {
+                                   label: 'MACD',
+                                   data: chartData.map(d => d.macd),
+                                   borderColor: '#60a5fa',
+                                   yAxisID: 'macd'
+                               },
+                               {
+                                   label: 'MACD Signal',
+                                   data: chartData.map(d => d.macd_signal),
+                                   borderColor: '#f87171',
+                                   yAxisID: 'macd'
+                               }
+                           ]
+                       },
+                       options: {
+                           scales: {
+                               price: { position: 'left', title: { display: true, text: 'Price (USDT)' } },
+                               rsi: { 
+                                   position: 'right', min: 0, max: 100, title: { display: true, text: 'RSI' },
+                                   grid: { drawOnChartArea: false }
+                               },
+                               macd: { position: 'right', title: { display: true, text: 'MACD' } }
+                           },
+                           plugins: {
+                               annotation: {
+                                   annotations: {
+                                       rsiOverbought: {
+                                           type: 'line',
+                                           yMin: 70,
+                                           yMax: 70,
+                                           borderColor: '#f87171',
+                                           borderWidth: 2,
+                                           yScaleID: 'rsi',
+                                           label: { content: 'Overbought', enabled: true, position: 'start' }
+                                       },
+                                       rsiOversold: {
+                                           type: 'line',
+                                           yMin: 30,
+                                           yMax: 30,
+                                           borderColor: '#34d399',
+                                           borderWidth: 2,
+                                           yScaleID: 'rsi',
+                                           label: { content: 'Oversold', enabled: true, position: 'start' }
+                                       }
+                                   }
+                               }
+                           },
+                           animation: false
+                       }
+                   });
+               } catch (error) {
+                   spinner.style.display = 'none';
+                   console.error('Error loading chart:', error);
+                   alert('Failed to load chart data for ' + symbol);
+               }
+           }
+
+           // Debounce function for modal opening
+           function debounce(func, wait) {
+               let timeout;
+               return function executedFunction(...args) {
+                   const later = () => {
+                       clearTimeout(timeout);
+                       func(...args);
+                   };
+                   clearTimeout(timeout);
+                   timeout = setTimeout(later, wait);
+               };
+           }
+           const debounceOpenModal = debounce(openModal, 300);
+
+           function closeModal() {
+               document.getElementById('chartModal').style.display = 'none';
+               if (modalChart) modalChart.destroy();
+           }
+
+           // Navbar toggle for mobile
+           function toggleNav() {
+               const navContent = document.getElementById('nav-content');
+               navContent.classList.toggle('open');
+               navContent.classList.toggle('hidden');
+           }
+
+           // Search functionality
+           function searchCoins() {
+               const input = document.getElementById('search-bar').value.toLowerCase();
+               const cards = document.getElementsByClassName('card');
+               for (let card of cards) {
+                   const symbol = card.querySelector('h2').textContent.toLowerCase();
+                   card.style.display = symbol.includes(input) ? '' : 'none';
+               }
+           }
+
+           // Auto-update data
+           function updateData() {
+               fetch('/api/data')
+                   .then(response => response.json())
+                   .then(data => {
+                       data.forEach(item => {
+                           const priceElement = document.querySelector(`.price[data-symbol="${item.symbol}"]`);
+                           if (priceElement && item.price) {
+                               priceElement.textContent = `$${item.price.toFixed(2)}`;
+                           }
+                           if (item.alert) {
+                               if (Notification.permission === "granted") {
+                                   new Notification(`Crypto Pulse Alert: ${item.symbol}`, {
+                                       body: item.alert,
+                                       icon: '/path/to/icon.png' // Add your own icon path if needed
+                                   });
+                               }
+                           }
+                       });
+                   });
+           }
+           setInterval(updateData, 5000);
+
+           // Set price alert
+           function setPriceAlert(symbol) {
+               const highInput = document.getElementById(`alert-high-${symbol}`).value;
+               const lowInput = document.getElementById(`alert-low-${symbol}`).value;
+               const data = { symbol: symbol };
+               if (highInput) data.high_price = highInput;
+               if (lowInput) data.low_price = lowInput;
+               if (!highInput && !lowInput) {
+                   alert('Please enter at least one price alert (high or low)');
+                   return;
+               }
+               fetch('/set_alert', {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify(data)
+               })
+               .then(response => response.json())
+               .then(data => {
+                   alert(data.message);
+               })
+               .catch(error => {
+                   console.error('Error setting alert:', error);
+                   alert('Failed to set price alert');
+               });
+           }
+
+           // Add to watchlist
+           function addToWatchlist(symbol) {
+               fetch('/add_to_watchlist', {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify({ symbol: symbol })
+               })
+               .then(response => response.json())
+               .then(data => {
+                   alert(data.message);
+               })
+               .catch(error => {
+                   console.error('Error adding to watchlist:', error);
+                   alert('Failed to add to watchlist');
+               });
+           }
+
+           // View watchlist
+           function viewWatchlist() {
+               const watchlist = JSON.parse(document.cookie.replace(/(?:(?:^|.*;\s*)watchlist\s*=\s*([^;]*).*$)|^.*$/, "$1") || '[]');
+               if (watchlist.length === 0) {
+                   alert('Your watchlist is empty.');
+                   return;
+               }
+               const cards = document.getElementsByClassName('card');
+               for (let card of cards) {
+                   const symbol = card.querySelector('h2').textContent;
+                   card.style.display = watchlist.includes(symbol) ? '' : 'none';
+               }
+               alert('Showing watchlist: ' + watchlist.join(', '));
+           }
+
+           // Load watchlist on page load
+           window.onload = function() {
+               const watchlist = JSON.parse(document.cookie.replace(/(?:(?:^|.*;\s*)watchlist\s*=\s*([^;]*).*$)|^.*$/, "$1") || '[]');
+               watchlist.forEach(symbol => {
+                   const card = document.querySelector(`.card h2:contains('${symbol}')`)?.closest('.card');
+                   if (card) card.classList.add('bg-blue-900');
+               });
+           };
+       </script>
+   </body>
+   </html>
